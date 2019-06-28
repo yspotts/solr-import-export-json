@@ -19,15 +19,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import org.apache.commons.cli.ParseException;
+import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrQuery.ORDER;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.CloudSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
+import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrInputDocument;
-import org.apache.solr.common.SolrInputField;
 import org.apache.solr.common.params.CursorMarkParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -115,8 +117,7 @@ public class App {
       readUniqueKeyFromSolrSchema();
     }
 
-    try (HttpSolrClient client = new HttpSolrClient.Builder().withBaseSolrUrl(config.getSolrUrl())
-                                                             .build()) {
+    try (SolrClient client = createSolrClient()) {
 
       try {
         switch (config.getActionType()) {
@@ -144,6 +145,17 @@ public class App {
       }
     }
 
+  }
+
+  private static SolrClient createSolrClient() {
+      if (config.getSolrUrl() != null) {
+          return new HttpSolrClient.Builder().withBaseSolrUrl(config.getSolrUrl()).build();
+      } else {
+          CloudSolrClient client = new CloudSolrClient.Builder(config.getZkHosts(), Optional.empty()).build();
+          client.setDefaultCollection(config.getCollection());
+          return client;
+
+      }
   }
 
   /**
@@ -224,7 +236,7 @@ public class App {
    * @throws IOException
    * @throws SolrServerException
    */
-  private static void writeAllDocuments(HttpSolrClient client, File outputFile) throws FileNotFoundException, IOException, SolrServerException
+  private static void writeAllDocuments(SolrClient client, File outputFile) throws FileNotFoundException, IOException, SolrServerException
   {
     AtomicInteger counter = new AtomicInteger(10000);
     if (!config.getDryRun() && config.getDeleteAll()) {
@@ -268,12 +280,12 @@ public class App {
 
   }
 
-  private static boolean insertBatch(HttpSolrClient client, List<SolrInputDocument> collect)
+  private static boolean insertBatch(SolrClient client, List<SolrInputDocument> collect)
   {
     try {
 
       if (!config.getDryRun()) {
-        logger.info("adding " + collect.size() + " documents (" + incrementCounter(collect.size()) + ")");
+        //logger.info("adding " + collect.size() + " documents (" + incrementCounter(collect.size()) + ")");
         if (counter >= skipCount) {
           client.add(collect);
           if (commitAfter != null && counter - lastCommit > commitAfter) {
@@ -287,11 +299,14 @@ public class App {
     } catch (SolrServerException | IOException e) {
       logger.error("Problem while saving", e);
       return false;
+    } catch (SolrException se) {
+      logger.warn("Could not save document; ignoring error", se);
+      return true;
     }
     return true;
   }
 
-  private static void commit(HttpSolrClient client) throws SolrServerException, IOException
+  private static void commit(SolrClient client) throws SolrServerException, IOException
   {
     if (!config.getDryRun()) {
       client.commit();
@@ -305,7 +320,7 @@ public class App {
    * @throws SolrServerException
    * @throws IOException
    */
-  private static void readAllDocuments(HttpSolrClient client, File outputFile) throws SolrServerException, IOException
+  private static void readAllDocuments(SolrClient client, File outputFile) throws SolrServerException, IOException
   {
 
     SolrQuery solrQuery = new SolrQuery();

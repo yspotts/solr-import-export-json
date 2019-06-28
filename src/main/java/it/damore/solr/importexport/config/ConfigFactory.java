@@ -1,5 +1,6 @@
 package it.damore.solr.importexport.config;
 
+import java.util.Arrays;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -9,6 +10,7 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.MissingArgumentException;
+import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.slf4j.Logger;
@@ -23,8 +25,10 @@ public class ConfigFactory {
 
   private static final String[] BLOCK_SIZE         = new String[] {"b", "blockSize"};
   private static final String[] SKIP_DOCS          = new String[] {"x", "skipCount"};
+  private static final String[] COLLECTION         = new String[] {"l", "collection"};
   private static final String[] COMMIT_DURING_WORK = new String[] {"c", "commitDuringImport"};
   private static final String[] SOLR_URL           = new String[] {"s", "solrUrl"};
+  private static final String[] ZK_HOSTS           = new String[] {"z", "zkHosts"};
   private static final String[] ACTION_TYPE        = new String[] {"a", "actionType"};
   private static final String[] OUTPUT             = new String[] {"o", "output"};
   private static final String[] DELETE_ALL         = new String[] {"d", "deleteAll"};
@@ -48,6 +52,8 @@ public class ConfigFactory {
   {
     CommandLine cmd = parseCommandLine(args);
     String solrUrl = cmd.getOptionValue(SOLR_URL[1]);
+    String[] zkHosts = cmd.getOptionValues(ZK_HOSTS[1]);
+    String collection = cmd.getOptionValue(COLLECTION[1]);
     String skipFields = cmd.getOptionValue(SKIP_FIELDS[1]);
     String includeFields = cmd.getOptionValue(INCLUDE_FIELDS[1]);
     String file = cmd.getOptionValue(OUTPUT[1]);
@@ -65,12 +71,20 @@ public class ConfigFactory {
       throw new MissingArgumentException("actionType should be [" + String.join("|", ActionType.getNames()) + "]");
     }
 
-    if (solrUrl == null) {
-      throw new MissingArgumentException("solrUrl missing");
+    if (solrUrl == null && zkHosts == null) {
+      throw new MissingArgumentException("solrUrl or zkUrl missing");
+    }
+
+    if (zkHosts != null && collection == null) {
+      throw new MissingArgumentException("must provide collection name");
     }
 
     CommandLineConfig c = new CommandLineConfig();
     c.setSolrUrl(solrUrl);
+    if (zkHosts != null) {
+        c.setZkHosts(Arrays.asList(zkHosts));
+        c.setCollection(collection);
+    }
     c.setFileName(file);
 
     if (uniqueKey != null) {
@@ -154,6 +168,10 @@ public class ConfigFactory {
   {
     Options cliOptions = new Options();
     cliOptions.addOption(SOLR_URL[0], SOLR_URL[1], true, "solr url - http://localhost:8983/solr/collection_name");
+    Option option = new Option(ZK_HOSTS[0], ZK_HOSTS[1], true, "zk urls");
+    option.setArgs(Option.UNLIMITED_VALUES);
+    cliOptions.addOption(option);
+    cliOptions.addOption(COLLECTION[0], COLLECTION[1], true, "collection (for SolrCloud)");
     cliOptions.addOption(ACTION_TYPE[0], ACTION_TYPE[1], true, "action type [" + String.join("|", ActionType.getNames()) + "]");
     cliOptions.addOption(OUTPUT[0], OUTPUT[1], true, "output file");
     cliOptions.addOption(DELETE_ALL[0], DELETE_ALL[1], false, "delete all documents before import");

@@ -60,6 +60,8 @@ public class CommandLineConfig {
   
   private ActionType actionType;
   private String solrUrl;
+  private List<String> zkHosts = Collections.emptyList();
+  private String collection;
   private String fileName;
   private Boolean deleteAll;
   private Set<SolrField> skipFieldSet = Collections.emptySet();
@@ -71,6 +73,24 @@ public class CommandLineConfig {
   private Integer commitAfter;
   private int blockSize = DEFAULT_BLOCK_SIZE;
   private String dateTimeFormat = DEFAULT_DATETIME_FORMAT;
+
+  public List<String> getZkHosts() {
+    return zkHosts;
+  }
+
+  public void setZkHosts(List<String> zkHosts) {
+    this.zkHosts = zkHosts;
+  }
+
+  public String getCollection() {
+    return this.collection;
+  }
+
+  public void setCollection(String collection) {
+    this.collection = collection;
+  }
+
+
   /**
    * @return the solrUrl
    */
